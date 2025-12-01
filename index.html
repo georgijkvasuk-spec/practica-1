@@ -3,58 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мой ежедневник - Улучшенная версия</title>
+    <title>Планировщик+ | Умный органайзер задач</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1>📝 Мой ежедневник</h1>
-            <p class="subtitle">Организуйте свои задачи эффективно</p>
+    <div class="container">
+        <!-- Шапка приложения -->
+        <header class="app-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <h1>Планировщик+</h1>
+            </div>
+            <p class="tagline">Умный органайзер для эффективного планирования дня</p>
+        </header>
+
+        <!-- Основной контент -->
+        <div class="main-content">
+            <!-- Левая боковая панель -->
+            <aside class="sidebar">
+                <!-- Статистика -->
+                <div class="stats-card">
+                    <div class="stats-title">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Статистика</span>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="totalTasks">0</div>
+                            <div class="stat-label">Всего задач</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="activeTasks">0</div>
+                            <div class="stat-label">Активных</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="completedTasks">0</div>
+                            <div class="stat-label">Выполнено</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="highPriorityTasks">0</div>
+                            <div class="stat-label">Срочных</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Форма добавления задачи -->
+                <div class="add-task-card">
+                    <div class="card-title">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Новая задача</span>
+                    </div>
+                    <form id="taskForm">
+                        <div class="form-group">
+                            <label class="form-label">Название задачи</label>
+                            <div class="input-with-icon">
+                                <i class="fas fa-tasks input-icon"></i>
+                                <input type="text" class="form-input" id="taskTitle" 
+                                       placeholder="Введите название задачи" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Описание</label>
+                            <textarea class="form-input" id="taskDescription" 
+                                      placeholder="Добавьте детали задачи (необязательно)"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Приоритет</label>
+                            <div class="priority-selector">
+                                <div class="priority-option priority-low" data-priority="low">
+                                    <i class="fas fa-arrow-down"></i> Низкий
+                                </div>
+                                <div class="priority-option priority-medium active" data-priority="medium">
+                                    <i class="fas fa-minus"></i> Средний
+                                </div>
+                                <div class="priority-option priority-high" data-priority="high">
+                                    <i class="fas fa-arrow-up"></i> Высокий
+                                </div>
+                            </div>
+                            <input type="hidden" id="taskPriority" value="medium">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Добавить задачу
+                        </button>
+                    </form>
+                </div>
+            </aside>
+
+            <!-- Основная область задач -->
+            <main class="tasks-section">
+                <div class="tasks-header">
+                    <h2 class="tasks-title">
+                        <i class="fas fa-list-check"></i> Мои задачи
+                    </h2>
+                    <div class="tasks-controls">
+                        <div class="filters">
+                            <button class="filter-btn active" data-filter="all">Все</button>
+                            <button class="filter-btn" data-filter="active">Активные</button>
+                            <button class="filter-btn" data-filter="completed">Выполненные</button>
+                        </div>
+                        <button class="btn btn-danger" id="clearCompletedBtn">
+                            <i class="fas fa-trash-can"></i> Очистить выполненные
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="tasks-container">
+                    <div class="tasks-grid" id="tasksGrid">
+                        <!-- Задачи будут добавляться здесь -->
+                        <div class="empty-state" id="emptyState">
+                            <div class="empty-icon">
+                                <i class="fas fa-clipboard-list"></i>
+                            </div>
+                            <h3 class="empty-title">Список задач пуст</h3>
+                            <p class="empty-text">
+                                Добавьте свою первую задачу, используя форму слева. 
+                                Начните планировать свой день эффективно!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
-    </header>
-    
-    <main class="container">
-        <section class="task-form">
-            <h2>➕ Добавить новую задачу</h2>
-            <form id="addTaskForm">
-                <div class="form-group">
-                    <label for="taskTitle">Название задачи *</label>
-                    <input type="text" id="taskTitle" class="form-control" placeholder="Что нужно сделать?" required>
-                </div>
-                <div class="form-group">
-                    <label for="taskDescription">Описание</label>
-                    <textarea id="taskDescription" class="form-control" placeholder="Детали задачи (необязательно)"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="taskPriority">Приоритет</label>
-                    <select id="taskPriority" class="form-control">
-                        <option value="low">Низкий</option>
-                        <option value="medium" selected>Средний</option>
-                        <option value="high">Высокий</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Добавить задачу</button>
-            </form>
-        </section>
-        
-        <section class="tasks-container">
-            <div class="tasks-header">
-                <h2>📋 Мои задачи</h2>
-                <div class="tasks-controls">
-                    <span class="task-count" id="taskCount">0 задач</span>
-                    <button class="btn btn-secondary" id="clearAllBtn">Очистить все</button>
-                </div>
-            </div>
-            
-            <div class="tasks-grid" id="tasksList">
-                <div class="empty-state" id="emptyState">
-                    <p>🎉 Отличная работа!</p>
-                    <p>Все задачи выполнены. Добавьте новую задачу чтобы продолжить.</p>
-                </div>
-            </div>
-        </section>
-    </main>
+    </div>
+
+    <!-- Уведомления -->
+    <div class="notification" id="notification">
+        <div class="notification-content">
+            <i class="fas fa-check-circle"></i>
+            <span id="notificationText">Задача успешно добавлена!</span>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
