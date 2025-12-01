@@ -1,89 +1,273 @@
+// Основной скрипт приложения
 document.addEventListener('DOMContentLoaded', function() {
-    const addTaskForm = document.getElementById('addTaskForm');
-    const taskTitleInput = document.getElementById('taskTitle');
-    const taskDescriptionInput = document.getElementById('taskDescription');
-    const taskPriorityInput = document.getElementById('taskPriority');
-    const tasksList = document.getElementById('tasksList');
-    const taskCount = document.getElementById('taskCount');
+    // Элементы DOM
+    const taskForm = document.getElementById('taskForm');
+    const tasksGrid = document.getElementById('tasksGrid');
     const emptyState = document.getElementById('emptyState');
-    const clearAllBtn = document.getElementById('clearAllBtn');
+    const notification = document.getElementById('notification');
+    const notificationText = document.getElementById('notificationText');
+    const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+    const priorityOptions = document.querySelectorAll('.priority-option');
     
-    let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    // Элементы статистики
+    const totalTasksEl = document.getElementById('totalTasks');
+    const activeTasksEl = document.getElementById('activeTasks');
+    const completedTasksEl = document.getElementById('completedTasks');
+    const highPriorityTasksEl = document.getElementById('highPriorityTasks');
     
-    function updateTaskCount() {
-        const count = tasks.length;
-        taskCount.textContent = `${count} ${getTaskWordForm(count)}`;
+    // Состояние приложения
+    let tasks = JSON.parse(localStorage.getItem('plannerTasks')) || [];
+    let currentFilter = 'all';
+    
+    // Инициализация
+    initApp();
+    
+    function initApp() {
+        updateStatistics();
+        renderTasks();
+        setupEventListeners();
         
-        if (count === 0) {
-            emptyState.style.display = 'block';
-            clearAllBtn.style.display = 'none';
-        } else {
-            emptyState.style.display = 'none';
-            clearAllBtn.style.display = 'inline-flex';
+        // Добавление демо-задач при первом запуске
+        if (tasks.length === 0) {
+            addDemoTasks();
         }
-        
-        saveTasksToLocalStorage();
     }
     
-    function getTaskWordForm(count) {
-        if (count % 10 === 1 && count % 100 !== 11) {
-            return 'задача';
-        } else if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) {
-            return 'задачи';
-        } else {
-            return 'задач';
-        }
+    function setupEventListeners() {
+        // Форма добавления задачи
+        taskForm.addEventListener('submit', handleAddTask);
+        
+        // Выбор приоритета
+        priorityOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                priorityOptions.forEach(opt => opt.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById('taskPriority').value = this.dataset.priority;
+            });
+        });
+        
+        // Фильтры
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.filter;
+                renderTasks();
+            });
+        });
+        
+        // Очистка выполненных задач
+        clearCompletedBtn.addEventListener('click', handleClearCompleted);
     }
     
-    function getPriorityText(priority) {
-        const priorities = {
-            'low': 'Низкий',
-            'medium': 'Средний',
-            'high': 'Высокий'
+    function handleAddTask(e) {
+        e.preventDefault();
+        
+        const title = document.getElementById('taskTitle').value.trim();
+        const description = document.getElementById('taskDescription').value.trim();
+        const priority = document.getElementById('taskPriority').value;
+        
+        if (!title) {
+            showNotification('Пожалуйста, введите название задачи', true);
+            return;
+        }
+        
+        const newTask = {
+            id: Date.now().toString(),
+            title: title,
+            description: description,
+            priority: priority,
+            completed: false,
+            date: new Date().toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }),
+            timestamp: Date.now()
         };
-        return priorities[priority] || 'Средний';
+        
+        tasks.unshift(newTask);
+        saveTasks();
+        renderTasks();
+        updateStatistics();
+        showNotification('Задача успешно добавлена!');
+        
+        // Сброс формы
+        taskForm.reset();
+        priorityOptions.forEach(opt => opt.classList.remove('active'));
+        document.querySelector('.priority-option[data-priority="medium"]').classList.add('active');
+        document.getElementById('taskPriority').value = 'medium';
     }
     
-    function getPriorityClass(priority) {
-        return `priority-${priority}`;
+    function handleClearCompleted() {
+        const completedTasks = tasks.filter(task => task.completed);
+        if (completedTasks.length === 0) {
+            showNotification('Нет выполненных задач для очистки', true);
+            return;
+        }
+        
+        if (confirm(`Удалить ${completedTasks.length} выполненных задач?`)) {
+            tasks = tasks.filter(task => !task.completed);
+            saveTasks();
+            renderTasks();
+            updateStatistics();
+            showNotification('Выполненные задачи удалены');
+        }
     }
     
     function renderTasks() {
-        tasksList.innerHTML = '';
+        tasksGrid.innerHTML = '';
         
-        if (tasks.length === 0) {
-            tasksList.appendChild(emptyState);
+        // Фильтрация задач
+        let filteredTasks = tasks;
+        if (currentFilter === 'active') {
+            filteredTasks = tasks.filter(task => !task.completed);
+        } else if (currentFilter === 'completed') {
+            filteredTasks = tasks.filter(task => task.completed);
+        }
+        
+        if (filteredTasks.length === 0) {
+            tasksGrid.appendChild(emptyState);
             emptyState.style.display = 'block';
             return;
         }
         
-        tasks.forEach((task, index) => {
-            const taskCard = document.createElement('div');
-            taskCard.className = `task-card ${getPriorityClass(task.priority)}`;
-            taskCard.innerHTML = `
-                <div class="task-header">
-                    <h3 class="task-title">${escapeHtml(task.title)}</h3>
-                    <span class="task-priority ${getPriorityClass(task.priority)}">
-                        ${getPriorityText(task.priority)}
-                    </span>
-                </div>
-                ${task.description ? `<p class="task-description">${escapeHtml(task.description)}</p>` : ''}
-                <div class="task-actions">
-                    <button class="btn btn-danger" data-index="${index}">
-                        🗑️ Удалить
-                    </button>
-                </div>
-            `;
+        emptyState.style.display = 'none';
+        
+        // Сортировка: сначала активные, потом по приоритету
+        filteredTasks.sort((a, b) => {
+            if (a.completed !== b.completed) return a.completed ? 1 : -1;
             
-            tasksList.appendChild(taskCard);
+            const priorityOrder = { high: 0, medium: 1, low: 2 };
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
         });
         
-        document.querySelectorAll('.btn-danger').forEach(button => {
-            button.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                deleteTask(index);
-            });
+        filteredTasks.forEach((task, index) => {
+            const taskElement = createTaskElement(task);
+            taskElement.style.animationDelay = `${index * 0.05}s`;
+            tasksGrid.appendChild(taskElement);
         });
+    }
+    
+    function createTaskElement(task) {
+        const taskEl = document.createElement('div');
+        taskEl.className = `task-item slide-in ${task.completed ? 'completed' : ''}`;
+        taskEl.dataset.id = task.id;
+        
+        // Определение цвета приоритета
+        let priorityColor, priorityText;
+        switch (task.priority) {
+            case 'low':
+                priorityColor = 'var(--success)';
+                priorityText = 'Низкий';
+                break;
+            case 'medium':
+                priorityColor = 'var(--warning)';
+                priorityText = 'Средний';
+                break;
+            case 'high':
+                priorityColor = 'var(--danger)';
+                priorityText = 'Высокий';
+                break;
+        }
+        
+        taskEl.innerHTML = `
+            <div class="task-header">
+                <div class="task-title">${escapeHtml(task.title)}</div>
+                <div class="task-priority-badge" style="background: ${priorityColor}20; color: ${priorityColor}">
+                    ${priorityText}
+                </div>
+            </div>
+            ${task.description ? `
+                <div class="task-description">
+                    ${escapeHtml(task.description)}
+                </div>
+            ` : ''}
+            <div class="task-footer">
+                <div class="task-date">
+                    <i class="far fa-calendar"></i>
+                    ${task.date}
+                </div>
+                <div class="task-actions">
+                    <button class="action-btn complete-btn" title="${task.completed ? 'Возобновить' : 'Выполнить'}">
+                        <i class="fas ${task.completed ? 'fa-rotate-left' : 'fa-check'}"></i>
+                    </button>
+                    <button class="action-btn delete-btn" title="Удалить">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Обработчики событий
+        const completeBtn = taskEl.querySelector('.complete-btn');
+        const deleteBtn = taskEl.querySelector('.delete-btn');
+        
+        completeBtn.addEventListener('click', () => toggleTaskComplete(task.id));
+        deleteBtn.addEventListener('click', () => deleteTask(task.id));
+        
+        return taskEl;
+    }
+    
+    function toggleTaskComplete(taskId) {
+        const taskIndex = tasks.findIndex(task => task.id === taskId);
+        if (taskIndex !== -1) {
+            tasks[taskIndex].completed = !tasks[taskIndex].completed;
+            saveTasks();
+            renderTasks();
+            updateStatistics();
+            
+            const task = tasks[taskIndex];
+            showNotification(`Задача "${task.title}" ${task.completed ? 'выполнена' : 'возобновлена'}!`);
+        }
+    }
+    
+    function deleteTask(taskId) {
+        const taskIndex = tasks.findIndex(task => task.id === taskId);
+        if (taskIndex !== -1) {
+            const taskTitle = tasks[taskIndex].title;
+            if (confirm(`Удалить задачу "${taskTitle}"?`)) {
+                tasks.splice(taskIndex, 1);
+                saveTasks();
+                renderTasks();
+                updateStatistics();
+                showNotification(`Задача "${taskTitle}" удалена`);
+            }
+        }
+    }
+    
+    function updateStatistics() {
+        const total = tasks.length;
+        const active = tasks.filter(task => !task.completed).length;
+        const completed = total - active;
+        const highPriority = tasks.filter(task => task.priority === 'high').length;
+        
+        totalTasksEl.textContent = total;
+        activeTasksEl.textContent = active;
+        completedTasksEl.textContent = completed;
+        highPriorityTasksEl.textContent = highPriority;
+    }
+    
+    function saveTasks() {
+        localStorage.setItem('plannerTasks', JSON.stringify(tasks));
+    }
+    
+    function showNotification(message, isError = false) {
+        notificationText.textContent = message;
+        notification.className = 'notification';
+        
+        if (isError) {
+            notification.classList.add('error');
+            notification.querySelector('i').className = 'fas fa-exclamation-circle';
+        } else {
+            notification.querySelector('i').className = 'fas fa-check-circle';
+        }
+        
+        notification.classList.add('show');
+        
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 3000);
     }
     
     function escapeHtml(text) {
@@ -92,104 +276,65 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
     
-    function addTask(title, description, priority) {
-        const newTask = {
-            title: title,
-            description: description,
-            priority: priority,
-            id: Date.now(),
-            createdAt: new Date().toISOString()
-        };
+    function addDemoTasks() {
+        const demoTasks = [
+            {
+                id: '1',
+                title: 'Запланировать встречу с командой',
+                description: 'Обсудить планы на следующий квартал и распределить задачи',
+                priority: 'high',
+                completed: false,
+                date: new Date().toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                }),
+                timestamp: Date.now() - 86400000
+            },
+            {
+                id: '2',
+                title: 'Подготовить отчет по проекту',
+                description: 'Собрать все данные и подготовить итоговый отчет',
+                priority: 'medium',
+                completed: true,
+                date: new Date(Date.now() - 172800000).toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                }),
+                timestamp: Date.now() - 172800000
+            },
+            {
+                id: '3',
+                title: 'Купить продукты на неделю',
+                description: 'Молоко, хлеб, овощи, фрукты, мясо',
+                priority: 'low',
+                completed: false,
+                date: new Date().toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                }),
+                timestamp: Date.now() - 43200000
+            },
+            {
+                id: '4',
+                title: 'Записаться на курс по JavaScript',
+                description: 'Изучить продвинутые концепции языка',
+                priority: 'medium',
+                completed: false,
+                date: new Date(Date.now() + 86400000).toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                }),
+                timestamp: Date.now() - 3600000
+            }
+        ];
         
-        tasks.push(newTask);
-        updateTaskCount();
+        tasks = demoTasks;
+        saveTasks();
         renderTasks();
-        showNotification('Задача успешно добавлена!', 'success');
+        updateStatistics();
     }
-    
-    function deleteTask(index) {
-        if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
-            const taskTitle = tasks[index].title;
-            tasks.splice(index, 1);
-            updateTaskCount();
-            renderTasks();
-            showNotification(`Задача "${taskTitle}" удалена`, 'info');
-        }
-    }
-    
-    function clearAllTasks() {
-        if (tasks.length === 0) {
-            showNotification('Нет задач для очистки', 'info');
-            return;
-        }
-        
-        if (confirm(`Вы уверены, что хотите удалить все задачи (${tasks.length})?`)) {
-            tasks = [];
-            updateTaskCount();
-            renderTasks();
-            showNotification('Все задачи удалены', 'info');
-        }
-    }
-    
-    function showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.transform = 'translateX(0)';
-        }, 100);
-        
-        setTimeout(() => {
-            notification.style.transform = 'translateX(100%)';
-            setTimeout(() => {
-                document.body.removeChild(notification);
-            }, 300);
-        }, 3000);
-    }
-    
-    function saveTasksToLocalStorage() {
-        localStorage.setItem('tasks', JSON.stringify(tasks));
-    }
-    
-    addTaskForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const title = taskTitleInput.value.trim();
-        const description = taskDescriptionInput.value.trim();
-        const priority = taskPriorityInput.value;
-        
-        if (!title) {
-            showNotification('Пожалуйста, введите название задачи', 'error');
-            taskTitleInput.focus();
-            return;
-        }
-        
-        addTask(title, description, priority);
-        
-        taskTitleInput.value = '';
-        taskDescriptionInput.value = '';
-        taskPriorityInput.value = 'medium';
-        taskTitleInput.focus();
-    });
-    
-    clearAllBtn.addEventListener('click', clearAllTasks);
-    
-    updateTaskCount();
-    renderTasks();
 });
